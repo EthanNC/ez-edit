@@ -1,209 +1,174 @@
 import Head from 'next/head'
+import "tailwindcss/tailwind.css"
+import { useEffect, useState, useRef } from 'react'
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg'
+const ffmpeg = createFFmpeg({ log: true })
+import { useForm } from 'react-hook-form';
+
 
 export default function Home() {
-  return (
-    <div className="container">
+
+  const [ready, setReady] = useState(false)
+  const [video, setVideo] = useState()
+  const [gif, setGif] = useState();
+
+  const { register, errors, getValues, handleSubmit, reset } = useForm();
+
+
+  const videoRef = useRef(null);
+  const load = async () => {
+    await ffmpeg.load()
+    setReady(true)
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+
+
+  function display(seconds) {
+    const format = val => `0${Math.floor(val)}`.slice(-2)
+    const hours = seconds / 3600
+    const minutes = (seconds % 3600) / 60
+
+    return [hours, minutes, seconds % 60].map(format).join(':')
+  }
+
+  const editVideo = async (inputs) => {
+
+    const { start, end } = inputs
+
+
+
+    const convertStart = display(start)
+    const convertEnd = display(end)
+
+    // Write the file to memory 
+    ffmpeg.FS('writeFile', 'test.mp4', await fetchFile(video));
+
+    // Run the FFMpeg command
+    await ffmpeg.run('-i', 'test.mp4', '-ss', convertStart, '-to', convertEnd, '-c', 'copy', 'out.mp4');
+
+    // Read the result
+    const data = ffmpeg.FS('readFile', 'out.mp4');
+
+    // Create a URL
+    const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+    setGif(url)
+  }
+
+
+  function downloadVideo( name = 'video.mp4') {
+    // Convert your blob into a Blob URL (a special url that points to an object in the browser's memory)
+
+  
+    // Create a link element
+    const link = document.createElement("a");
+  
+    // Set link's href to point to the Blob URL
+    link.href = gif;
+    link.download = name;
+  
+    // Append link to the body
+    document.body.appendChild(link);
+  
+    // Dispatch click event on the link
+    // This is necessary as link.click() does not work on the latest firefox
+    link.dispatchEvent(
+      new MouseEvent('click', { 
+        bubbles: true, 
+        cancelable: true, 
+        view: window 
+      })
+    );
+  
+    // Remove link from body
+    document.body.removeChild(link);
+  }
+
+  function resetForm(){
+    reset()
+    setGif()
+  }
+
+  
+
+
+  return ready ? (
+    <div className="flex flex-col flex-wrap content-center mx-4 ">
       <Head>
-        <title>Create Next App</title>
+        <title>EZ Edit</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main>
-        <h1 className="title">
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
+      <h1 className="text-4xl text-center py-8 italic">EZ Edit</h1>
 
-        <p className="description">
-          Get started by editing <code>pages/index.js</code>
-        </p>
+      <p className="bg-blue-200 rounded-md text-xl p-2 m-4 max-w-md"> EZ Edit uses <a className=" font-light underline hover:text-blue-600" href='https://ffmpegwasm.github.io/'>FFMPEG.WASM</a> to edit video on your browser. This proccess can be resource intensive and can cause your device to heat up</p>
 
-        <div className="grid">
-          <a href="https://nextjs.org/docs" className="card">
-            <h3>Documentation &rarr;</h3>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
+      { video && <div>
+        <button onClick={() => setVideo()}  className=" float-right m-2 px-4 py-2 font-medium tracking-wide text-white capitalize transition-colors duration-200 transform bg-gray-600 rounded dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-gray-700 focus:outline-none focus:bg-blue-500 dark:focus:bg-gray-700">
+          New Video
+        </button>
+        <video
+        id="video1"
+        controls
+        width="350"
+        src={URL.createObjectURL(video)}
+        ref={videoRef}
+      >
 
-          <a href="https://nextjs.org/learn" className="card">
-            <h3>Learn &rarr;</h3>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
+      </video>
+      </div>}
 
-          <a
-            href="https://github.com/vercel/next.js/tree/master/examples"
-            className="card"
-          >
-            <h3>Examples &rarr;</h3>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
 
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="card"
-          >
-            <h3>Deploy &rarr;</h3>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+      {!video && <input className="text-center p-4" type="file" onChange={(e) => setVideo(e.target.files?.item(0))} />}
+
+      {video && <form className="p-2" onSubmit={handleSubmit(data => editVideo(data))}>
+        <p className="font-bold">Trim Settings</p>
+
+        <div className="flex flex-col space-x-2 py-2 ">
+          <label > Start Time  </label>
+          <input className="w-24 px-2 bg-gray-100" type="number" name="start" step="1" min='0' placeholder='seconds' ref={register({ required: 'Start is required!' })}
+          />
+          {errors.start && <p style={{ color: 'red' }}>{errors.start.message}</p>}
         </div>
-      </main>
 
-      <footer>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <img src="/vercel.svg" alt="Vercel Logo" className="logo" />
-        </a>
-      </footer>
+        <div className="flex flex-col space-x-2 py-2">
+          <label >End Time</label>
+          <input className="w-24 px-2 bg-gray-100" type="number" name="end" placeholder='seconds' ref={register({
+            required: 'End is Required',
+            validate: {
+              greaterThanStart: (value) => {
+                const { start } = getValues();
+                return parseInt(value, 10) > parseInt(start, 10) || 'The end time cannot be below the start time';
+              },
+              max: (value) => {
+                const duration = videoRef.current.duration
 
-      <style jsx>{`
-        .container {
-          min-height: 100vh;
-          padding: 0 0.5rem;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
+                return duration >= parseInt(value, 10) || 'End Time is greater than the length of the Video'
+              }
+            }
+          })}
+            min="1" step="1" />
+          {errors.end && <p style={{ color: 'red' }}>{errors.end.message}</p>}
+        </div>
+        <button disabled={gif} type='submit' className=" float-right px-4 py-2 font-medium tracking-wide text-white capitalize transition-colors duration-200 transform bg-blue-600 rounded dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-gray-700 focus:outline-none focus:bg-blue-500 dark:focus:bg-gray-700 disabled:opacity-50">
+          Trim
+        </button>
+      </form>}
+      {    gif && <div>
+        <h1 className="text-xl p-2">Output</h1>
+        <video controls src={gif} width="250" />
+        <button onClick={() => downloadVideo()}  className="px-4 py-2 font-medium tracking-wide text-white capitalize transition-colors duration-200 transform bg-blue-600 rounded dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-gray-700 focus:outline-none focus:bg-blue-500 dark:focus:bg-gray-700">
+          Download
+        </button>
+        <button onClick={() => resetForm()}  className="m-4 px-4 py-2 font-medium tracking-wide text-white capitalize transition-colors duration-200 transform bg-gray-600 rounded dark:bg-gray-800 hover:bg-blue-500 dark:hover:bg-gray-700 focus:outline-none focus:bg-blue-500 dark:focus:bg-gray-700">
+          Reset
+        </button>
 
-        main {
-          padding: 5rem 0;
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
-
-        footer {
-          width: 100%;
-          height: 100px;
-          border-top: 1px solid #eaeaea;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-
-        footer img {
-          margin-left: 0.5rem;
-        }
-
-        footer a {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-
-        a {
-          color: inherit;
-          text-decoration: none;
-        }
-
-        .title a {
-          color: #0070f3;
-          text-decoration: none;
-        }
-
-        .title a:hover,
-        .title a:focus,
-        .title a:active {
-          text-decoration: underline;
-        }
-
-        .title {
-          margin: 0;
-          line-height: 1.15;
-          font-size: 4rem;
-        }
-
-        .title,
-        .description {
-          text-align: center;
-        }
-
-        .description {
-          line-height: 1.5;
-          font-size: 1.5rem;
-        }
-
-        code {
-          background: #fafafa;
-          border-radius: 5px;
-          padding: 0.75rem;
-          font-size: 1.1rem;
-          font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-            DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-        }
-
-        .grid {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: wrap;
-
-          max-width: 800px;
-          margin-top: 3rem;
-        }
-
-        .card {
-          margin: 1rem;
-          flex-basis: 45%;
-          padding: 1.5rem;
-          text-align: left;
-          color: inherit;
-          text-decoration: none;
-          border: 1px solid #eaeaea;
-          border-radius: 10px;
-          transition: color 0.15s ease, border-color 0.15s ease;
-        }
-
-        .card:hover,
-        .card:focus,
-        .card:active {
-          color: #0070f3;
-          border-color: #0070f3;
-        }
-
-        .card h3 {
-          margin: 0 0 1rem 0;
-          font-size: 1.5rem;
-        }
-
-        .card p {
-          margin: 0;
-          font-size: 1.25rem;
-          line-height: 1.5;
-        }
-
-        .logo {
-          height: 1em;
-        }
-
-        @media (max-width: 600px) {
-          .grid {
-            width: 100%;
-            flex-direction: column;
-          }
-        }
-      `}</style>
-
-      <style jsx global>{`
-        html,
-        body {
-          padding: 0;
-          margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
-            Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
-            sans-serif;
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-      `}</style>
+      </div>}
     </div>
-  )
+  ) :
+    (<p>Loading</p>)
 }
